@@ -63,9 +63,17 @@ class WC_Afiliados {
         return self::$instance;
     }
 
-    /** Crear tabla y programar cron */
+    /**
+	 * Acciones de activación: Crear rol, crear tabla y programar cron.
+	 */
     public function install() {
         global $wpdb;
+
+		// Crear el rol 'vendedor' con las mismas capacidades que un 'customer'.
+		// Es seguro ejecutarlo varias veces, no creará duplicados.
+		$customer_role = get_role( 'customer' );
+		add_role( 'vendedor', 'Vendedor', $customer_role ? $customer_role->capabilities : array( 'read' => true ) );
+
         require_once ABSPATH . 'wp-admin/includes/upgrade.php';
 
         $charset = $wpdb->get_charset_collate();
@@ -93,9 +101,15 @@ class WC_Afiliados {
         }
     }
 
-    /** Desactivar cron */
+    /**
+	 * Acciones de desactivación: Limpiar cron y eliminar rol.
+	 */
     public function uninstall() {
         wp_clear_scheduled_hook( 'wc_afiliados_monthly_event' );
+
+		// Elimina el rol 'vendedor' del sistema.
+		// WordPress no lo eliminará si todavía hay usuarios con este rol asignado.
+		remove_role( 'vendedor' );
     }
 
     /** Hook de cambio de estado de orden */

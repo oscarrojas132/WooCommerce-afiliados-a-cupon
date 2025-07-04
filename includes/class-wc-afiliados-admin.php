@@ -118,12 +118,9 @@ class WC_Afiliados_Admin {
 	 */
 	public function render_vendor_user_column( $value, $column_name, $user_id ) {
 		if ( 'is_vendor' === $column_name ) {
-			// Obtenemos directamente la metadata de las capacidades del usuario.
-			// Esto es una consulta más directa a la base de datos y menos propensa a caché de objetos.
-			$capabilities = get_user_meta( $user_id, $GLOBALS['wpdb']->prefix . 'capabilities', true );
-			
-			// Comprobamos si el array de capacidades es válido y si la clave 'vendedor' está presente.
-			if ( ! empty( $capabilities ) && array_key_exists( 'vendedor', $capabilities ) ) {
+			// Usamos la función estándar de WordPress, que es más fiable
+			// y respeta el caché que limpiamos en la acción en lote.
+			if ( user_can( $user_id, 'vendedor' ) ) {
 				return '✅ Sí';
 			}
 			return '❌ No';
@@ -142,7 +139,7 @@ class WC_Afiliados_Admin {
 
 	/**
 	 * PASO 4: Procesa la lógica cuando se ejecuta una acción en lote.
-	 * VERSIÓN CORREGIDA con limpieza de caché.
+	 * VERSIÓN CORREGIDA Y MEJORADA.
 	 */
 	public function handle_vendor_bulk_actions( $redirect_to, $action_name, $user_ids ) {
 		$users_changed = 0;
@@ -150,7 +147,8 @@ class WC_Afiliados_Admin {
 		if ( 'mark_vendor' === $action_name ) {
 			foreach ( $user_ids as $user_id ) {
 				$user = get_userdata( $user_id );
-				if ( $user && ! in_array( 'vendedor', $user->roles ) ) {
+				// Usamos user_can() para una comprobación más robusta.
+				if ( $user && ! user_can( $user, 'vendedor' ) ) {
 					$user->add_role( 'vendedor' );
 					$users_changed++;
 					
@@ -163,15 +161,20 @@ class WC_Afiliados_Admin {
 		} elseif ( 'unmark_vendor' === $action_name ) {
 			foreach ( $user_ids as $user_id ) {
 				$user = get_userdata( $user_id );
-				if ( $user && in_array( 'vendedor', $user->roles ) ) {
+				// Usamos user_can() para una comprobación más robusta.
+				if ( $user && user_can( $user, 'vendedor' ) ) {
+					// Verificamos si 'vendedor' es el único rol del usuario ANTES de eliminarlo.
+					$is_only_vendor = ( count( $user->roles ) === 1 && 'vendedor' === $user->roles[0] );
+
 					$user->remove_role( 'vendedor' );
-					// Opcional: Asegurarse de que sigan siendo 'customer' si no tienen otro rol.
-					if ( empty( $user->roles ) ) {
+
+					// Si era su único rol, le asignamos 'customer' para que no se quede sin rol.
+					// Esta comprobación se hace ahora de forma más segura.
+					if ( $is_only_vendor ) {
 						$user->add_role( 'customer' );
 					}
 					$users_changed++;
 
-					// ¡LÍNEA CLAVE! Limpiamos el caché para este usuario también aquí.
 					clean_user_cache( $user_id );
 				}
 			}
