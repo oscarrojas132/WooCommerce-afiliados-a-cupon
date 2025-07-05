@@ -1,104 +1,104 @@
-# WooCommerce Afiliados a Cupón
+# WooCommerce Affiliates to Coupon
 
-Un sistema de comisiones avanzado para WooCommerce, diseñado para vendedores o afiliados que operan con códigos de cupón y con un modelo de comisiones por niveles mensuales.
+An advanced commission system for WooCommerce, designed for vendors or affiliates who operate with coupon codes and a monthly tiered commission model.
 
-Este plugin extiende la funcionalidad de WooCommerce para crear un sistema de comisiones a medida, ideal para empresas de servicios o desarrollo donde el pago de la comisión no está ligado a la venta, sino a la finalización del proyecto.
-
----
-
-## Descripción
-
-Este plugin resuelve una necesidad de negocio específica: gestionar un equipo de vendedores externos que ganan comisiones basadas en un rendimiento mensual por cantidad, no por valor. A diferencia de los plugins de afiliados estándar, la comisión final de todas las ventas de un mes se calcula retroactivamente el primer día del mes siguiente, asegurando que se aplique la tasa correcta según el volumen total de ventas.
-
-El sistema desvincula el cálculo de la comisión del pago de la misma. Una comisión se considera "ganada" a fin de mes, pero solo se vuelve "pagable" una vez que un administrador marca manualmente el proyecto asociado como "Finalizado".
-
-## Características Principales
-
-* **Rol de Usuario "Vendedor":** Crea un rol específico para tus afiliados que hereda las capacidades de un cliente normal.
-* **Asignación de Cupones:** Permite asignar fácilmente un código de cupón de WooCommerce a un vendedor específico.
-* **Panel de Vendedor Integrado:** Añade una nueva pestaña en el área "Mi Cuenta" de WooCommerce para que los vendedores puedan ver en tiempo real el estado de sus ventas, comisiones pendientes, comisiones pagables y su historial.
-* **Panel de Administración Centralizado:** Proporciona al administrador del sitio una página dedicada para ver todas las comisiones, filtrarlas por vendedor o estado, y gestionar los pagos.
-* **Sistema de Comisiones por Niveles (Tiers) Mensuales:** Calcula las comisiones basándose en el número total de ventas que un vendedor logra dentro de un mes calendario.
-* **Cálculo Automatizado por Cron:** Utiliza el sistema de tareas programadas de WordPress (WP-Cron) para ejecutar automáticamente el complejo cálculo de comisiones el primer día de cada mes.
-* **Base de Datos Personalizada:** Almacena todos los datos de comisiones en una tabla personalizada (`wp_afiliados_ventas`) para un rendimiento óptimo y para no sobrecargar la tabla `postmeta` de WordPress.
-* **Flujo de Aprobación de Pagos:** Incluye un flujo de trabajo para que el administrador marque los proyectos como "finalizados", lo que cambia el estado de la comisión a "Pagable".
-
-## Instalación
-
-#### 1. Desde el panel de WordPress (Recomendado)
-
-1.  Comprime la carpeta completa del plugin en un archivo `.zip`.
-2.  Ve a tu panel de administración de WordPress y navega a `Plugins > Añadir nuevo`.
-3.  Haz clic en el botón `Subir plugin` en la parte superior de la página.
-4.  Selecciona el archivo `.zip` que acabas de crear y haz clic en `Instalar ahora`.
-5.  Una vez instalado, haz clic en `Activar plugin`.
-
-#### 2. Manualmente (vía FTP/SFTP)
-
-1.  Descomprime el archivo `.zip` del plugin en tu computadora.
-2.  Conéctate a tu servidor a través de un cliente FTP (como FileZilla).
-3.  Navega al directorio `wp-content/plugins/` de tu instalación de WordPress.
-4.  Sube la carpeta completa del plugin (`woocommerce-afiliados-cupon`) a este directorio.
-5.  Ve a tu panel de administración de WordPress, navega a `Plugins` y busca "WooCommerce Afiliados a Cupón" en la lista.
-6.  Haz clic en `Activar`.
-
-## Flujo de Trabajo (Uso)
-
-1.  **Configuración Inicial:**
-    * Asegúrate de que tus usuarios vendedores tengan asignado el rol "Vendedor".
-    * Crea cupones en `WooCommerce > Marketing > Cupones` y, en el campo personalizado, asigna cada cupón al vendedor correspondiente.
-
-2.  **Ciclo de Venta:**
-    * Un cliente utiliza un cupón de un vendedor para realizar una compra.
-    * El plugin registra automáticamente la venta en la tabla de comisiones con un estado inicial y una comisión provisional de 0.
-
-3.  **Proceso de Fin de Mes (Automático):**
-    * El primer día de cada mes, la tarea programada se ejecuta en segundo plano.
-    * El sistema calcula la cantidad total de ventas del mes anterior para cada vendedor, determina la tasa de comisión correcta según los niveles definidos y actualiza todas las comisiones de ese mes con el monto final.
-
-4.  **Finalización de Proyectos:**
-    * Cuando un proyecto/servicio asociado a un pedido se completa, el administrador debe ir a la página de edición de ese pedido en WooCommerce.
-    * Allí, encontrará un panel de "Gestión de Comisión" donde podrá marcar el proyecto como "Finalizado".
-    * Esto cambiará el estado de la comisión a "Pagable".
-
-5.  **Gestión y Pagos:**
-    * El vendedor puede ver en su panel qué comisiones están listas para ser pagadas.
-    * El administrador puede ver un resumen de todas las comisiones pagables en el panel de administración del plugin y proceder a realizar los pagos de forma externa (transferencia, PayPal, etc.).
-
-## Capturas de Pantalla
-
-**1. Panel del Vendedor en "Mi Cuenta"**
-
-Muestra al vendedor sus ventas, el estado de cada comisión y los totales.
-
-![Panel del Vendedor en Mi Cuenta]()
+This plugin extends WooCommerce functionality to create a custom commission system, ideal for service or development companies where commission payment is not tied to the sale, but to the completion of the project.
 
 ---
 
-**2. Panel de Administración de Comisiones**
+## Description
 
-Vista para el administrador del sitio, con herramientas para filtrar y gestionar todas las comisiones.
+This plugin solves a specific business need: managing a team of external vendors who earn commissions based on monthly performance by quantity, not value. Unlike standard affiliate plugins, the final commission for all sales in a month is calculated retroactively on the first day of the following month, ensuring the correct rate is applied according to the total sales volume.
 
-![Panel de Administración de Comisiones]()
+The system decouples commission calculation from its payment. A commission is considered "earned" at the end of the month, but only becomes "payable" once an administrator manually marks the associated project as "Completed".
+
+## Main Features
+
+* **"Vendor" User Role:** Creates a specific role for your affiliates that inherits the capabilities of a regular customer.
+* **Coupon Assignment:** Easily assign a WooCommerce coupon code to a specific vendor.
+* **Integrated Vendor Dashboard:** Adds a new tab in the WooCommerce "My Account" area so vendors can see in real time the status of their sales, pending commissions, payable commissions, and their history.
+* **Centralized Admin Panel:** Provides the site administrator with a dedicated page to view all commissions, filter them by vendor or status, and manage payments.
+* **Monthly Tiered Commission System:** Calculates commissions based on the total number of sales a vendor achieves within a calendar month.
+* **Automated Calculation via Cron:** Uses WordPress's scheduled task system (WP-Cron) to automatically run the complex commission calculation on the first day of each month.
+* **Custom Database Table:** Stores all commission data in a custom table (`wp_afiliados_ventas`) for optimal performance and to avoid overloading WordPress's `postmeta` table.
+* **Payment Approval Workflow:** Includes a workflow for the administrator to mark projects as "completed", which changes the commission status to "Payable".
+
+## Installation
+
+#### 1. From the WordPress Dashboard (Recommended)
+
+1.  Compress the entire plugin folder into a `.zip` file.
+2.  Go to your WordPress admin dashboard and navigate to `Plugins > Add New`.
+3.  Click the `Upload Plugin` button at the top of the page.
+4.  Select the `.zip` file you just created and click `Install Now`.
+5.  Once installed, click `Activate Plugin`.
+
+#### 2. Manually (via FTP/SFTP)
+
+1.  Unzip the plugin `.zip` file on your computer.
+2.  Connect to your server using an FTP client (like FileZilla).
+3.  Navigate to the `wp-content/plugins/` directory of your WordPress installation.
+4.  Upload the entire plugin folder (`woocommerce-afiliados-cupon`) to this directory.
+5.  Go to your WordPress admin dashboard, navigate to `Plugins`, and look for "WooCommerce Affiliates to Coupon" in the list.
+6.  Click `Activate`.
+
+## Workflow (Usage)
+
+1.  **Initial Setup:**
+    * Make sure your vendor users are assigned the "Vendor" role.
+    * Create coupons in `WooCommerce > Marketing > Coupons` and, in the custom field, assign each coupon to the corresponding vendor.
+
+2.  **Sales Cycle:**
+    * A customer uses a vendor's coupon to make a purchase.
+    * The plugin automatically records the sale in the commissions table with an initial status and a provisional commission of 0.
+
+3.  **End-of-Month Process (Automatic):**
+    * On the first day of each month, the scheduled task runs in the background.
+    * The system calculates the total number of sales from the previous month for each vendor, determines the correct commission rate according to the defined tiers, and updates all commissions for that month with the final amount.
+
+4.  **Project Completion:**
+    * When a project/service associated with an order is completed, the administrator must go to the edit page for that order in WooCommerce.
+    * There, they will find a "Commission Management" panel where they can mark the project as "Completed".
+    * This changes the commission status to "Payable".
+
+5.  **Management and Payments:**
+    * The vendor can see in their dashboard which commissions are ready to be paid.
+    * The administrator can see a summary of all payable commissions in the plugin's admin panel and proceed to make payments externally (bank transfer, PayPal, etc.).
+
+## Screenshots
+
+**1. Vendor Dashboard in "My Account"**
+
+Shows the vendor their sales, the status of each commission, and totals.
+
+![Vendor Dashboard in My Account]()
 
 ---
 
-**3. Asignación de Vendedor a un Cupón**
+**2. Commissions Admin Panel**
 
-Campo personalizado que aparece en la página de edición de cupones de WooCommerce.
+View for the site administrator, with tools to filter and manage all commissions.
 
-![Asignación de Vendedor a un Cupón]()
+![Commissions Admin Panel]()
 
 ---
 
-**4. Metabox de Gestión en el Pedido**
+**3. Assigning a Vendor to a Coupon**
 
-Permite al administrador marcar un proyecto como "Finalizado" directamente desde la orden de WooCommerce.
+Custom field that appears on the WooCommerce coupon edit page.
 
-![Metabox de Gestión en el Pedido]()
+![Assigning a Vendor to a Coupon]()
+
+---
+
+**4. Management Metabox in the Order**
+
+Allows the administrator to mark a project as "Completed" directly from the WooCommerce order.
+
+![Management Metabox in the Order]()
 
 
-## Licencia
+## License
 
-Este plugin es liberado bajo la Licencia Apache 2.0.
-Ver: https://www.apache.org/licenses/LICENSE-2.0
+This plugin is released under the Apache 2.0 License.
+See: https://www.apache.org/licenses/LICENSE-2.0
