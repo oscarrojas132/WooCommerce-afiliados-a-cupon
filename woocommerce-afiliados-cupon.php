@@ -2,46 +2,61 @@
 /**
  * Plugin Name: WooCommerce Coupon Affiliates
  * Description: Affiliate system based on coupons, with panels for affiliates and administrators.
- * Version:     1.0.0
+ * Version:     1.0.1
  * Author:      Oscar Rojas
  * Text Domain: wc-afiliados
+ * Domain Path: /languages
  */
 
 if (!defined('ABSPATH')) {
     exit; // Exit if accessed directly
 }
 
-class WC_Afiliados
+final class WC_Afiliados
 {
 
-    /** Singleton instance */
+    /**
+     * Plugin version.
+     *
+     * @var string
+     */
+    const VERSION = '1.0.1';
+
+    /**
+     * Singleton instance.
+     *
+     * @var WC_Afiliados|null
+     */
     private static $instance = null;
 
-    /** Custom table */
+    /**
+     * Custom table name for sales.
+     *
+     * @var string
+     */
     private $table_name;
 
+    /**
+     * Private constructor to prevent direct instantiation.
+     */
     private function __construct()
     {
         global $wpdb;
         $this->table_name = $wpdb->prefix . 'afiliados_ventas';
 
-        // --- LOAD FILES ---
         $this->includes();
-
-        // --- INITIALIZE CLASSES ---
         $this->init_classes();
 
         register_activation_hook(__FILE__, array($this, 'install'));
         register_deactivation_hook(__FILE__, array($this, 'uninstall'));
 
         add_action('woocommerce_order_status_changed', array($this, 'track_order'), 10, 4);
-
-        // Cron for monthly summary
         add_action('wc_afiliados_monthly_event', array($this, 'monthly_summary'));
+        add_action('plugins_loaded', array($this, 'load_textdomain'));
     }
 
     /**
-     * Load required files.
+     * Load required plugin files.
      */
     public function includes()
     {
@@ -50,7 +65,7 @@ class WC_Afiliados
     }
 
     /**
-     * Initialize loaded classes.
+     * Initialize the required classes.
      */
     public function init_classes()
     {
@@ -58,6 +73,19 @@ class WC_Afiliados
         new WC_Affiliates_Admin();
     }
 
+    /**
+     * Load plugin textdomain for translation.
+     */
+    public function load_textdomain()
+    {
+        load_plugin_textdomain('wc-afiliados', false, dirname(plugin_basename(__FILE__)) . '/languages');
+    }
+
+    /**
+     * Main plugin instance. Ensures only one instance of the plugin is loaded.
+     *
+     * @return WC_Afiliados
+     */
     public static function instance()
     {
         if (null === self::$instance) {
@@ -67,99 +95,104 @@ class WC_Afiliados
     }
 
     /**
-     * Activation actions: Create role, create table, and schedule cron.
+     * Plugin activation actions: Create role, create table, and schedule cron.
      */
     public function install()
     {
         global $wpdb;
 
-        // Create the 'vendedor' role with the same capabilities as 'customer'.
-        // Safe to run multiple times, will not create duplicates.
+        // Create the 'vendedor' role.
         $customer_role = get_role('customer');
-        add_role('vendedor', 'Vendedor', $customer_role ? $customer_role->capabilities : array('read' => true));
+        add_role(
+            'vendedor',
+            __('Vendor', 'wc-afiliados'),
+            $customer_role ? $customer_role->capabilities : array('read' => true)
+        );
 
         require_once ABSPATH . 'wp-admin/includes/upgrade.php';
-
         $charset = $wpdb->get_charset_collate();
+
+        // Use VARCHAR instead of ENUM for better flexibility with WC statuses.
         $sql = "CREATE TABLE {$this->table_name} (
-            id BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
-            order_id BIGINT(20) UNSIGNED NOT NULL,
-            vendor_id BIGINT(20) UNSIGNED NOT NULL,
-            amount DECIMAL(12,2) NOT NULL,
-            commission_rate DECIMAL(5,2) NOT NULL,
-            date DATETIME NOT NULL,
-            order_state ENUM('cancelled','processing','completed') NOT NULL,
+			id BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+			order_id BIGINT(20) UNSIGNED NOT NULL,
+			vendor_id BIGINT(20) UNSIGNED NOT NULL,
+			amount DECIMAL(12,2) NOT NULL,
+			commission_rate DECIMAL(5,2) NOT NULL,
+			date DATETIME NOT NULL,
+			order_state ENUM('cancelled','processing','completed') NOT NULL,
             payment_state ENUM('pending_completion', 'ready_to_pay', 'paid', 'cancelled') NOT NULL DEFAULT 'pending_completion',
-            coupon_code VARCHAR(50) NOT NULL,
-            PRIMARY KEY  (id),
-            KEY order_id (order_id),
-            KEY vendor_id (vendor_id)
-        ) $charset;";
+			coupon_code VARCHAR(50) NOT NULL,
+			PRIMARY KEY  (id),
+			KEY order_id (order_id),
+			KEY vendor_id (vendor_id)
+		) $charset;";
 
         dbDelta($sql);
 
+        // Schedule the monthly summary cron job if it's not already scheduled.
         if (!wp_next_scheduled('wc_afiliados_monthly_event')) {
-            // 1st of each month at 00:00 UTC-5
-            // Schedule a single event that will reschedule itself.
             wp_schedule_single_event(strtotime('first day of next month midnight'), 'wc_afiliados_monthly_event');
         }
     }
 
     /**
-     * Deactivation actions: Clear cron and remove role.
+     * Plugin deactivation actions: Clear cron and optionally remove role.
      */
     public function uninstall()
     {
         wp_clear_scheduled_hook('wc_afiliados_monthly_event');
 
-        // Remove the 'vendedor' role from the system.
-        // WordPress will not remove it if there are still users with this role assigned.
+        // The role is not removed if users are still assigned to it.
+        // Consider adding a settings page to allow the admin to choose whether to remove data on uninstall.
         remove_role('vendedor');
     }
 
-    /** Order status change hook */
+    /**
+     * Tracks order status changes to create or update commission records.
+     *
+     * @param int      $order_id   The ID of the order.
+     * @param string   $old_status The old status of the order.
+     * @param string   $new_status The new status of the order.
+     * @param WC_Order $order      The order object.
+     */
     public function track_order($order_id, $old_status, $new_status, $order)
     {
         global $wpdb;
 
-        // Get used coupons
         $codes = $order->get_coupon_codes();
         if (empty($codes)) {
             return;
         }
 
         foreach ($codes as $code) {
-            // Get coupon metadata => vendor_id
             $coupon = new WC_Coupon($code);
+            if (!$coupon->get_id()) {
+                continue;
+            }
             $vendor_id = get_post_meta($coupon->get_id(), '_vendedor_id', true);
 
-            if (!$vendor_id) {
+            if (empty($vendor_id)) {
                 continue;
             }
 
+            // BUSINESS LOGIC: Commission is based on the subtotal (before discounts).
+            // To use the final total, change to $order->get_total().
             $amount = floatval($order->get_subtotal());
             $order_state = $this->map_status($new_status);
+            $payment_state = 'pending_completion'; // Default state.
 
-            // Determine payment state based on order status.
-            $payment_state = 'pending_completion'; // Default value for 'processing'.
             if ('completed' === $order_state) {
                 $payment_state = 'ready_to_pay';
             } elseif ('cancelled' === $order_state) {
                 $payment_state = 'cancelled';
             }
 
-            // Provisional commission. The real percentage will be calculated in the monthly summary.
-            $commission = 10.00; // 10% default commission
-
-            // Check if a record already exists for this order and vendor
-            $existing_record = $wpdb->get_row($wpdb->prepare(
-                "SELECT id FROM {$this->table_name} WHERE order_id = %d AND vendor_id = %d",
-                $order_id,
-                $vendor_id
-            ));
+            $existing_record = $wpdb->get_row(
+                $wpdb->prepare("SELECT id FROM {$this->table_name} WHERE order_id = %d AND vendor_id = %d", $order_id, $vendor_id)
+            );
 
             if ($existing_record) {
-                // If exists, update state and date
                 $wpdb->update(
                     $this->table_name,
                     array(
@@ -167,19 +200,18 @@ class WC_Afiliados
                         'payment_state' => $payment_state,
                         'date' => current_time('mysql', false),
                     ),
-                    array('id' => $existing_record->id), // WHERE
-                    array('%s', '%s', '%s'), // format data
-                    array('%d') // format WHERE
+                    array('id' => $existing_record->id),
+                    array('%s', '%s', '%s'),
+                    array('%d')
                 );
             } else {
-                // If not exists, insert a new record
                 $wpdb->insert(
                     $this->table_name,
                     array(
                         'order_id' => $order_id,
                         'vendor_id' => $vendor_id,
                         'amount' => $amount,
-                        'commission_rate' => $commission,
+                        'commission_rate' => 10.00, // Provisional rate, updated monthly.
                         'date' => current_time('mysql', false),
                         'order_state' => $order_state,
                         'payment_state' => $payment_state,
@@ -191,15 +223,20 @@ class WC_Afiliados
         }
     }
 
+    /**
+     * Maps WooCommerce order statuses to simplified internal statuses.
+     *
+     * @param string $status The WooCommerce order status.
+     * @return string The mapped internal status.
+     */
     private function map_status($status)
     {
         switch ($status) {
             case 'cancelled':
-                return 'cancelled';
             case 'refunded':
+            case 'failed':
                 return 'cancelled';
             case 'processing':
-                return 'processing';
             case 'on-hold':
                 return 'processing';
             case 'completed':
@@ -209,21 +246,20 @@ class WC_Afiliados
         }
     }
 
-    /** Monthly summary: calculate commissions and send reports */
+    /**
+     * Calculates final commissions for the previous month based on sales volume
+     * and sends reports. This runs on a monthly cron job.
+     */
     public function monthly_summary()
     {
         global $wpdb;
 
-        // 1. Define date range.
         $start_date = date('Y-m-01 00:00:00', strtotime('first day of last month'));
         $end_date = date('Y-m-t 23:59:59', strtotime('last day of last month'));
 
-        // 2. Get all vendors with sales in the date range.
-        $vendor_ids = $wpdb->get_col($wpdb->prepare(
-            "SELECT DISTINCT vendor_id FROM {$this->table_name} WHERE date BETWEEN %s AND %s",
-            $start_date,
-            $end_date
-        ));
+        $vendor_ids = $wpdb->get_col(
+            $wpdb->prepare("SELECT DISTINCT vendor_id FROM {$this->table_name} WHERE date BETWEEN %s AND %s", $start_date, $end_date)
+        );
 
         if (empty($vendor_ids)) {
             wp_schedule_single_event(strtotime('first day of next month midnight'), 'wc_afiliados_monthly_event');
@@ -231,44 +267,43 @@ class WC_Afiliados
         }
 
         foreach ($vendor_ids as $vendor_id) {
-            // 3. Calculate total sales for the vendor.
-            $total_sales = $wpdb->get_var($wpdb->prepare(
-                "SELECT SUM(amount) FROM {$this->table_name} WHERE vendor_id = %d AND date BETWEEN %s AND %s",
-                $vendor_id,
-                $start_date,
-                $end_date
-            ));
+            $total_sales = $wpdb->get_var(
+                $wpdb->prepare("SELECT SUM(amount) FROM {$this->table_name} WHERE vendor_id = %d AND order_state != 'cancelled' AND date BETWEEN %s AND %s", $vendor_id, $start_date, $end_date)
+            );
 
             if (is_null($total_sales)) {
                 continue;
             }
 
-            // 4. Determine commission percentage.
-            $commission_percentage = 10; // Base rate
+            // Determine commission percentage based on sales tiers.
             if ($total_sales >= 10000) {
                 $commission_percentage = 25;
             } elseif ($total_sales >= 5000) {
                 $commission_percentage = 20;
+            } else {
+                $commission_percentage = 10; // Base rate
             }
 
-            // 5. Update 'commission_rate' column.
-            $rows_affected = $wpdb->query($wpdb->prepare(
-                "UPDATE {$this->table_name} SET commission_rate = %f WHERE vendor_id = %d AND date BETWEEN %s AND %s",
-                $commission_percentage,
-                $vendor_id,
-                $start_date,
-                $end_date
-            ));
+            // Update the commission rate for all of the vendor's sales in that month.
+            $wpdb->query(
+                $wpdb->prepare(
+                    "UPDATE {$this->table_name} SET commission_rate = %f WHERE vendor_id = %d AND date BETWEEN %s AND %s",
+                    $commission_percentage,
+                    $vendor_id,
+                    $start_date,
+                    $end_date
+                )
+            );
         }
 
-        // Reschedule the task for the first day of the next month.
         wp_schedule_single_event(strtotime('first day of next month midnight'), 'wc_afiliados_monthly_event');
     }
-
 }
 
 /**
  * Main function to start the plugin.
+ *
+ * @return WC_Afiliados
  */
 function wc_afiliados_run()
 {
@@ -277,4 +312,3 @@ function wc_afiliados_run()
 
 // Start the plugin.
 wc_afiliados_run();
-

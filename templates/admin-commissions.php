@@ -33,6 +33,7 @@ if ( ! empty( $where_clauses ) ) {
 }
 
 // Main query to get commission data, joining with users table to get vendor name
+// NOTE: We select sales.id, assuming 'id' is the primary key of your sales table.
 $query = "
 	SELECT sales.*, users.display_name AS vendor_name
 	FROM {$table_name} AS sales
@@ -52,12 +53,22 @@ $vendors = $wpdb->get_results( "SELECT DISTINCT T1.vendor_id, T2.display_name FR
 <div class="wrap">
 	<h1 class="wp-heading-inline">Vendor Commission Management</h1>
 
-	<!-- Filter Form -->
-	<form method="get">
+	<form method="post">
 		<input type="hidden" name="page" value="wc-afiliados-comisiones-admin">
+		<?php wp_nonce_field( 'commission_bulk_actions' ); ?>
+
 		<div class="tablenav top">
+			
+			<div class="alignleft actions bulkactions">
+				<label for="bulk-action-selector-top" class="screen-reader-text">Select bulk action</label>
+				<select name="action" id="bulk-action-selector-top">
+					<option value="-1">Bulk Actions</option>
+					<option value="mark_paid">Mark as Paid</option>
+				</select>
+				<input type="submit" id="doaction" class="button action" value="Apply">
+			</div>
+
 			<div class="alignleft actions">
-				<label for="filter_vendor" class="screen-reader-text">Filter by vendor</label>
 				<select name="filter_vendor" id="filter_vendor">
 					<option value="">All vendors</option>
 					<?php foreach ( $vendors as $vendor ) : ?>
@@ -67,78 +78,86 @@ $vendors = $wpdb->get_results( "SELECT DISTINCT T1.vendor_id, T2.display_name FR
 					<?php endforeach; ?>
 				</select>
 
-				<label for="filter_status" class="screen-reader-text">Filter by payment status</label>
 				<select name="filter_status" id="filter_status">
 					<option value="">All statuses</option>
-					<option value="pendiente_finalizacion" <?php selected( $filter_status, 'pendiente_finalizacion' ); ?>>Pending Completion</option>
-					<option value="lista_para_pagar" <?php selected( $filter_status, 'lista_para_pagar' ); ?>>Ready to Pay</option>
-					<option value="pagado" <?php selected( $filter_status, 'pagado' ); ?>>Paid</option>
-					<option value="cancelado" <?php selected( $filter_status, 'cancelado' ); ?>>Cancelled</option>
+					<option value="pending_completion" <?php selected( $filter_status, 'pending_completion' ); ?>>Pending Completion</option>
+					<option value="ready_to_pay" <?php selected( $filter_status, 'ready_to_pay' ); ?>>Ready to Pay</option>
+					<option value="paid" <?php selected( $filter_status, 'paid' ); ?>>Paid</option>
+					<option value="cancelled" <?php selected( $filter_status, 'cancelled' ); ?>>Cancelled</option>
 				</select>
 
-				<input type="submit" class="button" value="Filter">
+				<input type="submit" class="button" value="Filter" formaction="<?php echo esc_url( admin_url( 'admin.php?page=wc-afiliados-comisiones-admin' ) ); ?>" formmethod="get">
 				<a href="?page=wc-afiliados-comisiones-admin" class="button">Clear</a>
 			</div>
 		</div>
-	</form>
 
-	<!-- Commissions Table -->
-	<table class="wp-list-table widefat fixed striped">
-		<thead>
-			<tr>
-				<th scope="col" class="manage-column">Order</th>
-				<th scope="col" class="manage-column">Vendor</th>
-				<th scope="col" class="manage-column">Date</th>
-				<th scope="col" class="manage-column">Sale Amount</th>
-				<th scope="col" class="manage-column">Rate (%)</th>
-				<th scope="col" class="manage-column">Commission</th>
-				<th scope="col" class="manage-column">Order Status</th>
-				<th scope="col" class="manage-column">Payment Status</th>
-			</tr>
-		</thead>
-		<tbody id="the-list">
-			<?php if ( $commission_data ) : ?>
-				<?php
-					$total_commission_amount = 0;
-				foreach ( $commission_data as $data ) :
-					$commission_amount = ( $data->amount * $data->commission_rate ) / 100;
-					$total_commission_amount += ( 'cancelled' !== $data->order_state ) ? $commission_amount : 0;
-					?>
-					<tr>
-						<td>
-							<a href="<?php echo esc_url( get_edit_post_link( $data->order_id ) ); ?>">
-								#<?php echo esc_html( $data->order_id ); ?>
-							</a>
-						</td>
-						<td><?php echo esc_html( $data->vendor_name ); ?></td>
-						<td><?php echo esc_html( date_i18n( get_option( 'date_format' ), strtotime( $data->date ) ) ); ?></td>
-						<td><?php echo wc_price( $data->amount ); ?></td>
-						<td><?php echo esc_html( $data->commission_rate ); ?>%</td>
-						<td>
-							<?php if ( 'cancelled' === $data->order_state ) : ?>
-								<span style="color:#e2401c;">Cancelled</span>
-							<?php else : ?>
-								<strong><?php echo wc_price( $commission_amount ); ?></strong>
-							<?php endif; ?>
-						</td>
-						<td><?php echo esc_html( ucwords( str_replace( '_', ' ', $data->order_state ) ) ); ?></td>
-						<td><?php echo esc_html( ucwords( str_replace( '_', ' ', $data->payment_state ) ) ); ?></td>
-					</tr>
-				<?php endforeach; ?>
-			<?php else : ?>
-				<tr class="no-items">
-					<td class="colspanchange" colspan="8">No commissions found with the selected filters.</td>
+		<table class="wp-list-table widefat fixed striped">
+			<thead>
+				<tr>
+					<td id="cb" class="manage-column column-cb check-column">
+						<input id="cb-select-all-1" type="checkbox">
+					</td>
+					<th scope="col" class="manage-column">Order</th>
+					<th scope="col" class="manage-column">Vendor</th>
+					<th scope="col" class="manage-column">Date</th>
+					<th scope="col" class="manage-column">Sale Amount</th>
+					<th scope="col" class="manage-column">Rate (%)</th>
+					<th scope="col" class="manage-column">Commission</th>
+					<th scope="col" class="manage-column">Order Status</th>
+					<th scope="col" class="manage-column">Payment Status</th>
 				</tr>
-			<?php endif; ?>
-		</tbody>
-		<tfoot>
-			<tr>
-				<th scope="col" colspan="5" style="text-align:right;">Total Commissions (Filtered):</th>
-				<th scope="col">
-					<strong><?php echo wc_price( $total_commission_amount ); ?></strong>
-				</th>
-				<th scope="col" colspan="2"></th>
-			</tr>
-		</tfoot>
-	</table>
+			</thead>
+			<tbody id="the-list">
+				<?php if ( $commission_data ) : ?>
+					<?php
+						$total_commission_amount = 0;
+					foreach ( $commission_data as $data ) :
+						// Assumes 'id' is the primary key of the sales table.
+						if ( ! isset( $data->id ) ) {
+							continue; // Skip if no ID is present.
+						}
+						$commission_amount = ( $data->amount * $data->commission_rate ) / 100;
+						$total_commission_amount += ( 'cancelled' !== $data->order_state ) ? $commission_amount : 0;
+						?>
+						<tr>
+							<th scope="row" class="check-column">
+								<input type="checkbox" name="commission_ids[]" value="<?php echo esc_attr( $data->id ); ?>">
+							</th>
+							<td>
+								<a href="<?php echo esc_url( get_edit_post_link( $data->order_id ) ); ?>">
+									#<?php echo esc_html( $data->order_id ); ?>
+								</a>
+							</td>
+							<td><?php echo esc_html( $data->vendor_name ); ?></td>
+							<td><?php echo esc_html( date_i18n( get_option( 'date_format' ), strtotime( $data->date ) ) ); ?></td>
+							<td><?php echo wc_price( $data->amount ); ?></td>
+							<td><?php echo esc_html( $data->commission_rate ); ?>%</td>
+							<td>
+								<?php if ( 'cancelled' === $data->order_state ) : ?>
+									<span style="color:#e2401c;">Cancelled</span>
+								<?php else : ?>
+									<strong><?php echo wc_price( $commission_amount ); ?></strong>
+								<?php endif; ?>
+							</td>
+							<td><?php echo esc_html( ucwords( str_replace( '_', ' ', $data->order_state ) ) ); ?></td>
+							<td><?php echo esc_html( ucwords( str_replace( '_', ' ', $data->payment_state ) ) ); ?></td>
+						</tr>
+					<?php endforeach; ?>
+				<?php else : ?>
+					<tr class="no-items">
+						<td class="colspanchange" colspan="9">No commissions found with the selected filters.</td>
+					</tr>
+				<?php endif; ?>
+			</tbody>
+			<tfoot>
+				<tr>
+					<th scope="col" colspan="6" style="text-align:right;">Total Commissions (Filtered):</th>
+					<th scope="col">
+						<strong><?php echo wc_price( $total_commission_amount ); ?></strong>
+					</th>
+					<th scope="col" colspan="2"></th>
+				</tr>
+			</tfoot>
+		</table>
+	</form>
 </div>

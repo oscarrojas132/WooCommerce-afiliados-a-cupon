@@ -18,25 +18,73 @@ class WC_Affiliates_Admin {
 		// Hook for the commissions submenu
 		add_action( 'admin_menu', array( $this, 'add_admin_menu' ) );
 
+		// --- NEW: Hook to process bulk actions on the commissions page ---
+		add_action( 'admin_init', array( $this, 'process_commission_bulk_actions' ) );
+
 		// Hooks for the users table
 		add_filter( 'manage_users_columns', array( $this, 'add_vendor_user_column' ) );
 		add_filter( 'manage_users_custom_column', array( $this, 'render_vendor_user_column' ), 10, 3 );
 		add_filter( 'bulk_actions-users', array( $this, 'add_vendor_bulk_actions' ) );
 		add_filter( 'handle_bulk_actions-users', array( $this, 'handle_vendor_bulk_actions' ), 10, 3 );
-		add_action( 'admin_notices', array( $this, 'vendor_bulk_action_admin_notice' ) );
-		
-		// --- NEW: Hooks for the coupon edit page ---
+		add_action( 'admin_notices', array( $this, 'show_bulk_action_admin_notices' ) ); // Renamed for clarity
+
+		// Hooks for the coupon edit page
 		add_action( 'woocommerce_coupon_options', array( $this, 'add_vendor_field_to_coupon' ), 10, 2 );
 		add_action( 'woocommerce_coupon_options_save', array( $this, 'save_vendor_field_from_coupon' ), 10, 2 );
 	}
+	
+	/**
+	 * NEW: Processes the "Mark as Paid" bulk action from the commissions panel.
+	 */
+	public function process_commission_bulk_actions() {
+		// Check if we are on the correct admin page, a bulk action has been selected, and the nonce is valid.
+		if (
+			isset( $_POST['page'] ) && 'wc-afiliados-comisiones-admin' === $_POST['page'] &&
+			isset( $_POST['action'] ) && 'mark_paid' === $_POST['action'] &&
+			isset( $_POST['_wpnonce'] ) && wp_verify_nonce( $_POST['_wpnonce'], 'commission_bulk_actions' )
+		) {
+			// Check if any commission IDs have been selected.
+			if ( isset( $_POST['commission_ids'] ) && is_array( $_POST['commission_ids'] ) ) {
+				$commission_ids = array_map( 'absint', $_POST['commission_ids'] ); // Sanitize IDs to integers.
+				
+				if ( ! empty( $commission_ids ) ) {
+					global $wpdb;
+					$table_name = $wpdb->prefix . 'afiliados_ventas';
+					
+					// Create a placeholder string for the IN clause.
+					$id_placeholders = implode( ', ', array_fill( 0, count( $commission_ids ), '%d' ) );
+					
+					// Prepare the SQL query to update the payment state.
+					$query = $wpdb->prepare(
+						"UPDATE {$table_name} SET payment_state = 'paid' WHERE id IN ( {$id_placeholders} )",
+						$commission_ids
+					);
+					
+					$updated_count = $wpdb->query( $query );
+					
+					// Redirect back with a success notice.
+					$redirect_to = add_query_arg(
+						array(
+							'bulk_action_completed' => 'paid',
+							'updated_count'         => $updated_count,
+						),
+						wp_get_referer()
+					);
+					
+					wp_safe_redirect( $redirect_to );
+					exit;
+				}
+			}
+		}
+	}
+
 
 	/**
-	 * NEW: Adds a field to select a vendor on the coupon edit page.
+	 * Adds a field to select a vendor on the coupon edit page.
 	 */
 	public function add_vendor_field_to_coupon( $coupon_id, $coupon ) {
 		echo '<div class="options_group">';
 		
-		// Get the vendor ID already saved, if it exists.
 		$vendor_id = get_post_meta( $coupon_id, '_vendedor_id', true );
 
 		woocommerce_wp_select(
@@ -54,7 +102,7 @@ class WC_Affiliates_Admin {
 	}
 
 	/**
-	 * NEW: Saves the selected vendor ID from the coupon page.
+	 * Saves the selected vendor ID from the coupon page.
 	 */
 	public function save_vendor_field_from_coupon( $post_id, $coupon ) {
 		if ( isset( $_POST['vendedor_id'] ) ) {
@@ -64,12 +112,12 @@ class WC_Affiliates_Admin {
 	}
 
 	/**
-	 * NEW: Helper function to get a list of all vendors.
+	 * Helper function to get a list of all vendors.
 	 */
 	private function get_all_vendors_for_dropdown() {
 		$vendors = get_users( array( 'role' => 'vendedor' ) );
 		$options = array(
-			0 => '— None —', // Option to unassign
+			0 => '— None —',
 		);
 
 		foreach ( $vendors as $vendor ) {
@@ -102,7 +150,7 @@ class WC_Affiliates_Admin {
 	}
 
 	/**
-	 * STEP 1: Adds the "Vendor" column to the Users table.
+	 * Adds the "Vendor" column to the Users table.
 	 */
 	public function add_vendor_user_column( $columns ) {
 		$columns['is_vendor'] = 'Vendor';
@@ -110,12 +158,10 @@ class WC_Affiliates_Admin {
 	}
 
 	/**
-	 * STEP 2: Displays the content in the new "Vendor" column.
+	 * Displays the content in the new "Vendor" column.
 	 */
 	public function render_vendor_user_column( $value, $column_name, $user_id ) {
 		if ( 'is_vendor' === $column_name ) {
-			// Use the standard WordPress function, which is more reliable
-			// and respects the cache we clear in the bulk action.
 			if ( user_can( $user_id, 'vendedor' ) ) {
 				return '✅ Yes';
 			}
@@ -125,7 +171,7 @@ class WC_Affiliates_Admin {
 	}
 
 	/**
-	 * STEP 3: Adds new actions to the "Bulk Actions" dropdown menu.
+	 * Adds new actions to the "Bulk Actions" dropdown menu.
 	 */
 	public function add_vendor_bulk_actions( $actions ) {
 		$actions['mark_vendor'] = 'Mark as Vendor';
@@ -134,8 +180,7 @@ class WC_Affiliates_Admin {
 	}
 
 	/**
-	 * STEP 4: Processes the logic when a bulk action is executed.
-	 * FIXED AND IMPROVED VERSION.
+	 * Processes the logic when a bulk action is executed on the Users table.
 	 */
 	public function handle_vendor_bulk_actions( $redirect_to, $action_name, $user_ids ) {
 		$users_changed = 0;
@@ -143,12 +188,9 @@ class WC_Affiliates_Admin {
 		if ( 'mark_vendor' === $action_name ) {
 			foreach ( $user_ids as $user_id ) {
 				$user = get_userdata( $user_id );
-				// Use user_can() for a more robust check.
 				if ( $user && ! user_can( $user, 'vendedor' ) ) {
 					$user->add_role( 'vendedor' );
 					$users_changed++;
-					
-					// KEY LINE! Clear the cache for this user.
 					clean_user_cache( $user_id );
 				}
 			}
@@ -157,20 +199,13 @@ class WC_Affiliates_Admin {
 		} elseif ( 'unmark_vendor' === $action_name ) {
 			foreach ( $user_ids as $user_id ) {
 				$user = get_userdata( $user_id );
-				// Use user_can() for a more robust check.
 				if ( $user && user_can( $user, 'vendedor' ) ) {
-					// Check if 'vendedor' is the user's only role BEFORE removing it.
 					$is_only_vendor = ( count( $user->roles ) === 1 && 'vendedor' === $user->roles[0] );
-
 					$user->remove_role( 'vendedor' );
-
-					// If it was their only role, assign 'customer' so they are not left without a role.
-					// This check is now done more safely.
 					if ( $is_only_vendor ) {
 						$user->add_role( 'customer' );
 					}
 					$users_changed++;
-
 					clean_user_cache( $user_id );
 				}
 			}
@@ -185,22 +220,38 @@ class WC_Affiliates_Admin {
 	}
 
 	/**
-	 * STEP 5: Displays a confirmation notice to the admin.
+	 * Displays confirmation notices to the admin for all bulk actions.
 	 */
-	public function vendor_bulk_action_admin_notice() {
+	public function show_bulk_action_admin_notices() {
+		// Notice for user role changes
 		if ( ! empty( $_REQUEST['vendor_action'] ) && ! empty( $_REQUEST['users_changed'] ) ) {
 			$users_changed = intval( $_REQUEST['users_changed'] );
 			$message = '';
 
-			if ( $_REQUEST['vendor_action'] === 'marked' ) {
+			if ( 'marked' === $_REQUEST['vendor_action'] ) {
 				$message = sprintf( _n( '%s user has been marked as Vendor.', '%s users have been marked as Vendors.', $users_changed, 'wc-afiliados' ), $users_changed );
-			} elseif ( $_REQUEST['vendor_action'] === 'unmarked' ) {
+			} elseif ( 'unmarked' === $_REQUEST['vendor_action'] ) {
 				$message = sprintf( _n( '%s user has been unmarked as Vendor.', '%s users have been unmarked as Vendors.', $users_changed, 'wc-afiliados' ), $users_changed );
 			}
 			
 			if ( $message ) {
-				echo '<div class="notice notice-success is-dismissible"><p>' . $message . '</p></div>';
+				echo '<div class="notice notice-success is-dismissible"><p>' . esc_html( $message ) . '</p></div>';
 			}
+		}
+
+		// NEW: Notice for commission status changes
+		if ( ! empty( $_REQUEST['bulk_action_completed'] ) && 'paid' === $_REQUEST['bulk_action_completed'] ) {
+			$updated_count = isset( $_REQUEST['updated_count'] ) ? intval( $_REQUEST['updated_count'] ) : 0;
+			$message       = sprintf(
+				_n(
+					'%s commission was successfully marked as paid.',
+					'%s commissions were successfully marked as paid.',
+					$updated_count,
+					'wc-afiliados'
+				),
+				number_format_i18n( $updated_count )
+			);
+			echo '<div class="notice notice-success is-dismissible"><p>' . esc_html( $message ) . '</p></div>';
 		}
 	}
 }
