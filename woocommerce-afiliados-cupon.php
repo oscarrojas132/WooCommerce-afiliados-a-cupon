@@ -7,11 +7,12 @@
  * Text Domain: wc-afiliados
  */
 
-if ( ! defined( 'ABSPATH' ) ) {
+if (!defined('ABSPATH')) {
     exit; // Exit if accessed directly
 }
 
-class WC_Afiliados {
+class WC_Afiliados
+{
 
     /** Singleton instance */
     private static $instance = null;
@@ -19,7 +20,8 @@ class WC_Afiliados {
     /** Tabla personalizada */
     private $table_name;
 
-    private function __construct() {
+    private function __construct()
+    {
         global $wpdb;
         $this->table_name = $wpdb->prefix . 'afiliados_ventas';
 
@@ -29,50 +31,54 @@ class WC_Afiliados {
         // --- INICIALIZACIÓN DE CLASES ---
         $this->init_classes();
 
-        register_activation_hook( __FILE__, array( $this, 'install' ) );
-        register_deactivation_hook( __FILE__, array( $this, 'uninstall' ) );
+        register_activation_hook(__FILE__, array($this, 'install'));
+        register_deactivation_hook(__FILE__, array($this, 'uninstall'));
 
 
 
-        add_action( 'woocommerce_order_status_changed', array( $this, 'track_order' ), 10, 4 );
+        add_action('woocommerce_order_status_changed', array($this, 'track_order'), 10, 4);
 
         // Cron para resumen mensual
-        add_action( 'wc_afiliados_monthly_event', array( $this, 'monthly_summary' ) );
+        add_action('wc_afiliados_monthly_event', array($this, 'monthly_summary'));
     }
 
     /**
-	 * Carga los archivos necesarios.
-	 */
-	public function includes() {
-		require_once dirname( __FILE__ ) . '/includes/class-wc-afiliados-frontend.php';
-		require_once dirname( __FILE__ ) . '/includes/class-wc-afiliados-admin.php';
-	}
+     * Carga los archivos necesarios.
+     */
+    public function includes()
+    {
+        require_once dirname(__FILE__) . '/includes/class-wc-afiliados-frontend.php';
+        require_once dirname(__FILE__) . '/includes/class-wc-afiliados-admin.php';
+    }
 
     /**
-	 * Inicializa las clases cargadas.
-	 */
-	public function init_classes() {
-		new WC_Afiliados_Frontend();
-		new WC_Afiliados_Admin();
-	}
+     * Inicializa las clases cargadas.
+     */
+    public function init_classes()
+    {
+        new WC_Afiliados_Frontend();
+        new WC_Afiliados_Admin();
+    }
 
-    public static function instance() {
-        if ( null === self::$instance ) {
+    public static function instance()
+    {
+        if (null === self::$instance) {
             self::$instance = new self();
         }
         return self::$instance;
     }
 
     /**
-	 * Acciones de activación: Crear rol, crear tabla y programar cron.
-	 */
-    public function install() {
+     * Acciones de activación: Crear rol, crear tabla y programar cron.
+     */
+    public function install()
+    {
         global $wpdb;
 
-		// Crear el rol 'vendedor' con las mismas capacidades que un 'customer'.
-		// Es seguro ejecutarlo varias veces, no creará duplicados.
-		$customer_role = get_role( 'customer' );
-		add_role( 'vendedor', 'Vendedor', $customer_role ? $customer_role->capabilities : array( 'read' => true ) );
+        // Crear el rol 'vendedor' con las mismas capacidades que un 'customer'.
+        // Es seguro ejecutarlo varias veces, no creará duplicados.
+        $customer_role = get_role('customer');
+        add_role('vendedor', 'Vendedor', $customer_role ? $customer_role->capabilities : array('read' => true));
 
         require_once ABSPATH . 'wp-admin/includes/upgrade.php';
 
@@ -92,95 +98,104 @@ class WC_Afiliados {
             KEY vendor_id (vendor_id)
         ) $charset;";
 
-        dbDelta( $sql );
+        dbDelta($sql);
 
-        if ( ! wp_next_scheduled( 'wc_afiliados_monthly_event' ) ) {
+        if (!wp_next_scheduled('wc_afiliados_monthly_event')) {
             // 1 de cada mes a 00:00 UTC-5
             // Se programa un evento único que se re-programará a sí mismo.
-            wp_schedule_single_event( strtotime( 'first day of next month midnight' ), 'wc_afiliados_monthly_event' );
+            wp_schedule_single_event(strtotime('first day of next month midnight'), 'wc_afiliados_monthly_event');
         }
     }
 
     /**
-	 * Acciones de desactivación: Limpiar cron y eliminar rol.
-	 */
-    public function uninstall() {
-        wp_clear_scheduled_hook( 'wc_afiliados_monthly_event' );
+     * Acciones de desactivación: Limpiar cron y eliminar rol.
+     */
+    public function uninstall()
+    {
+        wp_clear_scheduled_hook('wc_afiliados_monthly_event');
 
-		// Elimina el rol 'vendedor' del sistema.
-		// WordPress no lo eliminará si todavía hay usuarios con este rol asignado.
-		remove_role( 'vendedor' );
+        // Elimina el rol 'vendedor' del sistema.
+        // WordPress no lo eliminará si todavía hay usuarios con este rol asignado.
+        remove_role('vendedor');
     }
 
     /** Hook de cambio de estado de orden */
-    public function track_order( $order_id, $old_status, $new_status, $order ) {
+    public function track_order($order_id, $old_status, $new_status, $order)
+    {
         global $wpdb;
 
         // Obtener cupones usados
         $codes = $order->get_coupon_codes();
-        if ( empty( $codes ) ) {
+        if (empty($codes)) {
             return;
         }
 
-        foreach ( $codes as $code ) {
+        foreach ($codes as $code) {
             // Obtener metadata del cupón => vendor_id
-            $coupon = new WC_Coupon( $code );
-            $vendor_id = $coupon->get_meta( 'vendor_id' );
-            if ( ! $vendor_id ) {
+            $coupon = new WC_Coupon($code);
+            $vendor_id = get_post_meta($coupon->get_id(), '_vendedor_id', true);
+
+            if (!$vendor_id) {
                 continue;
             }
 
-            $amount = floatval( $order->get_subtotal() );
-            $state = $this->map_status( $new_status );
-            $payment_state = '';
-            if ( 'cancelado' === $state ) {
-                $payment_state = 'NA';
+            $amount = floatval($order->get_subtotal());
+            $order_state = $this->map_status($new_status);
+
+            // Determinar el estado de pago basado en el estado de la orden.
+            $payment_state = 'pendiente_finalizacion'; // Valor por defecto para 'en_proceso'.
+            if ('completado' === $order_state) {
+                $payment_state = 'lista_para_pagar';
+            } elseif ('cancelado' === $order_state) {
+                $payment_state = 'cancelado';
             }
 
             // Comisión provisional. Se calculará el porcentaje real en el resumen mensual.
-            $commission = 0;
+            $commission = 10.00; // 10% de comisión por defecto
 
             // Verificar si ya existe un registro para esta orden y vendedor
-            $existing_record = $wpdb->get_row( $wpdb->prepare(
+            $existing_record = $wpdb->get_row($wpdb->prepare(
                 "SELECT id FROM {$this->table_name} WHERE order_id = %d AND vendor_id = %d",
-                $order_id, $vendor_id
-            ) );
+                $order_id,
+                $vendor_id
+            ));
 
-            if ( $existing_record ) {
+            if ($existing_record) {
                 // Si existe, actualizar el estado y la fecha
                 $wpdb->update(
                     $this->table_name,
                     array(
-                        'order_state'   => $state,
+                        'order_state' => $order_state,
                         'payment_state' => $payment_state,
-                        'date'          => current_time( 'mysql', false ),
+                        'date' => current_time('mysql', false),
                     ),
-                    array( 'id' => $existing_record->id ), // WHERE
-                    array( '%s', '%s', '%s' ), // format data
-                    array( '%d' ) // format WHERE
+                    array('id' => $existing_record->id), // WHERE
+                    array('%s', '%s', '%s'), // format data
+                    array('%d') // format WHERE
                 );
             } else {
                 // Si no existe, insertar un nuevo registro
                 $wpdb->insert(
                     $this->table_name,
                     array(
-                        'order_id'      => $order_id,
-                        'vendor_id'     => $vendor_id,
-                        'amount'        => $amount,
-                        'commission_rate'    => $commission,
-                        'date'          => current_time( 'mysql', false ),
-                        'order_state'   => $state,
+                        'order_id' => $order_id,
+                        'vendor_id' => $vendor_id,
+                        'amount' => $amount,
+                        'commission_rate' => $commission,
+                        'date' => current_time('mysql', false),
+                        'order_state' => $order_state,
                         'payment_state' => $payment_state,
-                        'coupon_code'   => $code,
+                        'coupon_code' => $code,
                     ),
-                    array( '%d','%d','%f','%f','%s','%s','%s','%s' )
+                    array('%d', '%d', '%f', '%f', '%s', '%s', '%s', '%s')
                 );
             }
         }
     }
 
-    private function map_status( $status ) {
-        switch ( $status ) {
+    private function map_status($status)
+    {
+        switch ($status) {
             case 'cancelled':
                 return 'cancelado';
             case 'refunded':
@@ -197,52 +212,63 @@ class WC_Afiliados {
     }
 
     /** Resumen mensual: calcular comisiones y enviar reportes */
-    public function monthly_summary() {
+    /**
+     * Resumen mensual: calcular comisiones y enviar reportes
+     * VERSIÓN DE DEPURACIÓN
+     */
+    public function monthly_summary()
+    {
         global $wpdb;
 
-        // 1. Definir el rango de fechas para el mes anterior
-        $start_date = date( 'Y-m-01 00:00:00', strtotime( 'first day of last month' ) );
-        $end_date   = date( 'Y-m-t 23:59:59', strtotime( 'last day of last month' ) );
+        // 1. Definir el rango de fechas.
+        $start_date = date('Y-m-01 00:00:00', strtotime('first day of last month'));
+        $end_date = date('Y-m-t 23:59:59', strtotime('last day of last month'));
 
-        // 2. Obtener todos los vendedores con ventas en el mes anterior
-        $vendor_ids = $wpdb->get_col( $wpdb->prepare(
+        // 2. Obtener todos los vendedores con ventas en el rango de fechas.
+        $vendor_ids = $wpdb->get_col($wpdb->prepare(
             "SELECT DISTINCT vendor_id FROM {$this->table_name} WHERE date BETWEEN %s AND %s",
             $start_date,
             $end_date
-        ) );
+        ));
 
-        if ( ! empty( $vendor_ids ) ) {
-            foreach ( $vendor_ids as $vendor_id ) {
-                // 3. Calcular el total de ventas para el vendedor en el mes (sin importar estado)
-                $total_sales = $wpdb->get_var( $wpdb->prepare(
-                    "SELECT SUM(amount) FROM {$this->table_name} WHERE vendor_id = %d AND date BETWEEN %s AND %s",
-                    $vendor_id,
-                    $start_date,
-                    $end_date
-                ) );
-
-                if ( is_null( $total_sales ) ) {
-                    continue;
-                }
-
-                // 4. Determinar el PORCENTAJE de comisión según los niveles
-                $commission_percentage = 10; // 10% por defecto (< 5000)
-                if ( $total_sales >= 10000 ) {
-                    $commission_percentage = 25; // 25%
-                } elseif ( $total_sales >= 5000 ) {
-                    $commission_percentage = 20; // 20%
-                }
-
-                // 5. Actualizar la columna 'commission' con el porcentaje para todas las ventas del vendedor en ese mes
-                $wpdb->query( $wpdb->prepare(
-                    "UPDATE {$this->table_name} SET commission_rate = %f WHERE vendor_id = %d AND date BETWEEN %s AND %s",
-                    $commission_percentage, $vendor_id, $start_date, $end_date
-                ) );
-            }
+        if (empty($vendor_ids)) {
+            wp_schedule_single_event(strtotime('first day of next month midnight'), 'wc_afiliados_monthly_event');
+            return;
         }
-        
+
+        foreach ($vendor_ids as $vendor_id) {
+            // 3. Calcular el total de ventas para el vendedor.
+            $total_sales = $wpdb->get_var($wpdb->prepare(
+                "SELECT SUM(amount) FROM {$this->table_name} WHERE vendor_id = %d AND date BETWEEN %s AND %s",
+                $vendor_id,
+                $start_date,
+                $end_date
+            ));
+
+            if (is_null($total_sales)) {
+                continue;
+            }
+
+            // 4. Determinar el porcentaje de comisión.
+            $commission_percentage = 10; // Tasa base
+            if ($total_sales >= 10000) {
+                $commission_percentage = 25;
+            } elseif ($total_sales >= 5000) {
+                $commission_percentage = 20;
+            }
+
+            // 5. Actualizar la columna 'commission_rate'.
+            $rows_affected = $wpdb->query($wpdb->prepare(
+                "UPDATE {$this->table_name} SET commission_rate = %f WHERE vendor_id = %d AND date BETWEEN %s AND %s",
+                $commission_percentage,
+                $vendor_id,
+                $start_date,
+                $end_date
+            ));
+        }
+
         // Volver a programar la tarea para el primer día del mes siguiente.
-        wp_schedule_single_event( strtotime( 'first day of next month midnight' ), 'wc_afiliados_monthly_event' );
+        wp_schedule_single_event(strtotime('first day of next month midnight'), 'wc_afiliados_monthly_event');
     }
 
 }
@@ -250,7 +276,8 @@ class WC_Afiliados {
 /**
  * Función principal para iniciar el plugin.
  */
-function wc_afiliados_run() {
+function wc_afiliados_run()
+{
     return WC_Afiliados::instance();
 }
 
