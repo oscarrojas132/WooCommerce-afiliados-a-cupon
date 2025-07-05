@@ -1,8 +1,8 @@
 <?php
 /**
- * Maneja la lógica del panel de administración.
+ * Handles the logic for the admin panel.
  *
- * @package WooCommerce Afiliados a Cupón
+ * @package WooCommerce Coupon Affiliates
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -15,39 +15,35 @@ class WC_Afiliados_Admin {
 	 * Constructor.
 	 */
 	public function __construct() {
-		// Hook para el submenú de comisiones
+		// Hook for the commissions submenu
 		add_action( 'admin_menu', array( $this, 'add_admin_menu' ) );
 
-		// Hooks para la tabla de usuarios
+		// Hooks for the users table
 		add_filter( 'manage_users_columns', array( $this, 'add_vendor_user_column' ) );
 		add_filter( 'manage_users_custom_column', array( $this, 'render_vendor_user_column' ), 10, 3 );
 		add_filter( 'bulk_actions-users', array( $this, 'add_vendor_bulk_actions' ) );
 		add_filter( 'handle_bulk_actions-users', array( $this, 'handle_vendor_bulk_actions' ), 10, 3 );
 		add_action( 'admin_notices', array( $this, 'vendor_bulk_action_admin_notice' ) );
 		
-		// --- NUEVO: Hooks para la página de edición de cupones ---
+		// --- NEW: Hooks for the coupon edit page ---
 		add_action( 'woocommerce_coupon_options', array( $this, 'add_vendor_field_to_coupon' ), 10, 2 );
 		add_action( 'woocommerce_coupon_options_save', array( $this, 'save_vendor_field_from_coupon' ), 10, 2 );
 	}
 
-	//
-	// ... Aquí van todas tus funciones anteriores: add_admin_menu, render_admin_panel, add_vendor_user_column, etc. ...
-	//
-
 	/**
-	 * NUEVO: Añade un campo para seleccionar un vendedor en la página de edición de cupones.
+	 * NEW: Adds a field to select a vendor on the coupon edit page.
 	 */
 	public function add_vendor_field_to_coupon( $coupon_id, $coupon ) {
 		echo '<div class="options_group">';
 		
-		// Obtenemos el ID del vendedor que ya está guardado, si existe.
+		// Get the vendor ID already saved, if it exists.
 		$vendor_id = get_post_meta( $coupon_id, '_vendedor_id', true );
 
 		woocommerce_wp_select(
 			array(
 				'id'          => 'vendedor_id',
-				'label'       => 'Vendedor Asociado',
-				'description' => 'Asigna este cupón a un usuario con el rol de Vendedor. Esto se usará para calcular sus comisiones.',
+				'label'       => 'Associated Vendor',
+				'description' => 'Assign this coupon to a user with the Vendor role. This will be used to calculate their commissions.',
 				'value'       => $vendor_id,
 				'options'     => $this->get_all_vendors_for_dropdown(),
 				'desc_tip'    => true,
@@ -58,7 +54,7 @@ class WC_Afiliados_Admin {
 	}
 
 	/**
-	 * NUEVO: Guarda el ID del vendedor seleccionado desde la página del cupón.
+	 * NEW: Saves the selected vendor ID from the coupon page.
 	 */
 	public function save_vendor_field_from_coupon( $post_id, $coupon ) {
 		if ( isset( $_POST['vendedor_id'] ) ) {
@@ -68,12 +64,12 @@ class WC_Afiliados_Admin {
 	}
 
 	/**
-	 * NUEVO: Función auxiliar para obtener una lista de todos los vendedores.
+	 * NEW: Helper function to get a list of all vendors.
 	 */
 	private function get_all_vendors_for_dropdown() {
 		$vendors = get_users( array( 'role' => 'vendedor' ) );
 		$options = array(
-			0 => '— Ninguno —', // Opción para desasignar
+			0 => '— None —', // Option to unassign
 		);
 
 		foreach ( $vendors as $vendor ) {
@@ -84,13 +80,13 @@ class WC_Afiliados_Admin {
 	}
 
 	/**
-	 * Agrega la página de comisiones como un submenú de WooCommerce.
+	 * Adds the commissions page as a WooCommerce submenu.
 	 */
 	public function add_admin_menu() {
 		add_submenu_page(
 			'woocommerce',
-			'Comisiones de Vendedores',
-			'Comisiones Vendedores',
+			'Vendor Commissions',
+			'Vendor Commissions',
 			'manage_woocommerce',
 			'wc-afiliados-comisiones-admin',
 			array( $this, 'render_admin_panel' )
@@ -98,7 +94,7 @@ class WC_Afiliados_Admin {
 	}
 
 	/**
-	 * Renderiza la página de administración de comisiones.
+	 * Renders the commissions admin page.
 	 */
 	public function render_admin_panel() {
 		$plugin_path = dirname( __DIR__ );
@@ -106,22 +102,22 @@ class WC_Afiliados_Admin {
 	}
 
 	/**
-	 * PASO 1: Añade la columna "Vendedor" a la tabla de Usuarios.
+	 * STEP 1: Adds the "Vendor" column to the Users table.
 	 */
 	public function add_vendor_user_column( $columns ) {
-		$columns['is_vendor'] = 'Vendedor';
+		$columns['is_vendor'] = 'Vendor';
 		return $columns;
 	}
 
 	/**
-	 * PASO 2: Muestra el contenido en la nueva columna "Vendedor".
+	 * STEP 2: Displays the content in the new "Vendor" column.
 	 */
 	public function render_vendor_user_column( $value, $column_name, $user_id ) {
 		if ( 'is_vendor' === $column_name ) {
-			// Usamos la función estándar de WordPress, que es más fiable
-			// y respeta el caché que limpiamos en la acción en lote.
+			// Use the standard WordPress function, which is more reliable
+			// and respects the cache we clear in the bulk action.
 			if ( user_can( $user_id, 'vendedor' ) ) {
-				return '✅ Sí';
+				return '✅ Yes';
 			}
 			return '❌ No';
 		}
@@ -129,17 +125,17 @@ class WC_Afiliados_Admin {
 	}
 
 	/**
-	 * PASO 3: Agrega las nuevas acciones al menú desplegable "Acciones en lote".
+	 * STEP 3: Adds new actions to the "Bulk Actions" dropdown menu.
 	 */
 	public function add_vendor_bulk_actions( $actions ) {
-		$actions['mark_vendor'] = 'Marcar como Vendedor';
-		$actions['unmark_vendor'] = 'Quitar como Vendedor';
+		$actions['mark_vendor'] = 'Mark as Vendor';
+		$actions['unmark_vendor'] = 'Remove as Vendor';
 		return $actions;
 	}
 
 	/**
-	 * PASO 4: Procesa la lógica cuando se ejecuta una acción en lote.
-	 * VERSIÓN CORREGIDA Y MEJORADA.
+	 * STEP 4: Processes the logic when a bulk action is executed.
+	 * FIXED AND IMPROVED VERSION.
 	 */
 	public function handle_vendor_bulk_actions( $redirect_to, $action_name, $user_ids ) {
 		$users_changed = 0;
@@ -147,12 +143,12 @@ class WC_Afiliados_Admin {
 		if ( 'mark_vendor' === $action_name ) {
 			foreach ( $user_ids as $user_id ) {
 				$user = get_userdata( $user_id );
-				// Usamos user_can() para una comprobación más robusta.
+				// Use user_can() for a more robust check.
 				if ( $user && ! user_can( $user, 'vendedor' ) ) {
 					$user->add_role( 'vendedor' );
 					$users_changed++;
 					
-					// ¡LÍNEA CLAVE! Limpiamos el caché para este usuario.
+					// KEY LINE! Clear the cache for this user.
 					clean_user_cache( $user_id );
 				}
 			}
@@ -161,15 +157,15 @@ class WC_Afiliados_Admin {
 		} elseif ( 'unmark_vendor' === $action_name ) {
 			foreach ( $user_ids as $user_id ) {
 				$user = get_userdata( $user_id );
-				// Usamos user_can() para una comprobación más robusta.
+				// Use user_can() for a more robust check.
 				if ( $user && user_can( $user, 'vendedor' ) ) {
-					// Verificamos si 'vendedor' es el único rol del usuario ANTES de eliminarlo.
+					// Check if 'vendedor' is the user's only role BEFORE removing it.
 					$is_only_vendor = ( count( $user->roles ) === 1 && 'vendedor' === $user->roles[0] );
 
 					$user->remove_role( 'vendedor' );
 
-					// Si era su único rol, le asignamos 'customer' para que no se quede sin rol.
-					// Esta comprobación se hace ahora de forma más segura.
+					// If it was their only role, assign 'customer' so they are not left without a role.
+					// This check is now done more safely.
 					if ( $is_only_vendor ) {
 						$user->add_role( 'customer' );
 					}
@@ -189,7 +185,7 @@ class WC_Afiliados_Admin {
 	}
 
 	/**
-	 * PASO 5: Muestra un aviso de confirmación al administrador.
+	 * STEP 5: Displays a confirmation notice to the admin.
 	 */
 	public function vendor_bulk_action_admin_notice() {
 		if ( ! empty( $_REQUEST['vendor_action'] ) && ! empty( $_REQUEST['users_changed'] ) ) {
@@ -197,9 +193,9 @@ class WC_Afiliados_Admin {
 			$message = '';
 
 			if ( $_REQUEST['vendor_action'] === 'marked' ) {
-				$message = sprintf( _n( '%s usuario ha sido marcado como Vendedor.', '%s usuarios han sido marcados como Vendedores.', $users_changed, 'wc-afiliados' ), $users_changed );
+				$message = sprintf( _n( '%s user has been marked as Vendor.', '%s users have been marked as Vendors.', $users_changed, 'wc-afiliados' ), $users_changed );
 			} elseif ( $_REQUEST['vendor_action'] === 'unmarked' ) {
-				$message = sprintf( _n( 'A %s usuario se le ha quitado el rol de Vendedor.', 'A %s usuarios se les ha quitado el rol de Vendedor.', $users_changed, 'wc-afiliados' ), $users_changed );
+				$message = sprintf( _n( '%s user has been unmarked as Vendor.', '%s users have been unmarked as Vendors.', $users_changed, 'wc-afiliados' ), $users_changed );
 			}
 			
 			if ( $message ) {

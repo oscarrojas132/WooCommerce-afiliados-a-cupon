@@ -1,8 +1,8 @@
 <?php
 /**
- * Maneja la lógica del frontend para los vendedores.
+ * Handles frontend logic for vendors.
  *
- * @package WooCommerce Afiliados a Cupón
+ * @package WooCommerce Coupon Affiliates
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -13,49 +13,49 @@ class WC_Afiliados_Frontend {
 
 	/**
 	 * Constructor.
-	 * Engancha todos los hooks necesarios para el frontend.
+	 * Hooks all necessary frontend actions.
 	 */
 	public function __construct() {
-		// Hooks para crear el panel en "Mi Cuenta"
+		// Hooks to create the panel in "My Account"
 		add_action( 'init', array( $this, 'register_endpoints' ) );
 		add_filter( 'woocommerce_account_menu_items', array( $this, 'add_account_menu' ) );
 		add_action( 'woocommerce_account_afiliados_endpoint', array( $this, 'render_affiliates_panel' ) );
 	}
 
 	/**
-	 * Registrar el endpoint "afiliados" para la URL.
+	 * Register the "afiliados" endpoint for the URL.
 	 */
 	public function register_endpoints() {
 		add_rewrite_endpoint( 'afiliados', EP_PAGES );
 	}
 
 	/**
-	 * Agregar el ítem "Afiliados" al menú de "Mi Cuenta".
+	 * Add the "Afiliados" item to the "My Account" menu.
 	 *
-	 * @param array $items Los ítems del menú existentes.
-	 * @return array Los ítems del menú modificados.
+	 * @param array $items Existing menu items.
+	 * @return array Modified menu items.
 	 */
 	public function add_account_menu( $items ) {
-		// Solo mostramos el menú si el usuario tiene el rol 'vendedor'
+		// Only show the menu if the user has the 'vendedor' role
 		if ( current_user_can( 'vendedor' ) ) {
-			// Creamos un nuevo array para reordenar y poner nuestro link antes de 'Salir'
+			// Create a new array to reorder and put our link before 'Logout'
 			$logout = $items['customer-logout'];
 			unset( $items['customer-logout'] );
-			$items['afiliados'] = 'Panel de Vendedor';
+			$items['afiliados'] = 'Vendor Panel';
 			$items['customer-logout'] = $logout;
 		}
 		return $items;
 	}
 
 	/**
-	 * Renderizar el contenido del panel de afiliados.
-	 * Carga la plantilla 'affiliates.php'.
+	 * Render the content of the affiliates panel.
+	 * Loads the 'affiliates.php' template.
 	 */
 	public function render_affiliates_panel() {
-		// Ya no se necesita la comprobación de is_user_logged_in() porque este hook solo se dispara para usuarios logueados.
+		// No need to check is_user_logged_in() because this hook only fires for logged-in users.
 		
-		// Obtiene la ruta de la carpeta principal del plugin
-		$plugin_path = dirname( __DIR__ ); // Sube un nivel desde /includes/
+		// Get the main plugin folder path
+		$plugin_path = dirname( __DIR__ ); // Go up one level from /includes/
 
 		wc_get_template( 
 			'myaccount/affiliates.php', 

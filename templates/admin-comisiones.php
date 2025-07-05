@@ -1,24 +1,24 @@
 <?php
 /**
- * Plantilla para el Panel de Administración de Comisiones.
+ * Template for the Commission Admin Panel.
  *
- * @package WooCommerce Afiliados a Cupón
+ * @package WooCommerce Coupon Affiliates
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit; // Exit if accessed directly.
 }
 
-// ---- 1. LÓGICA DE OBTENCIÓN Y FILTRADO DE DATOS ----
+// ---- 1. DATA RETRIEVAL AND FILTERING LOGIC ----
 
 global $wpdb;
 $table_name = $wpdb->prefix . 'afiliados_ventas';
 
-// Obtener los valores de los filtros (si existen)
+// Get filter values (if any)
 $filter_vendor_id = isset( $_GET['filter_vendor'] ) ? absint( $_GET['filter_vendor'] ) : 0;
 $filter_status    = isset( $_GET['filter_status'] ) ? sanitize_text_field( $_GET['filter_status'] ) : '';
 
-// Construir la consulta SQL con los filtros
+// Build SQL query with filters
 $where_clauses = array();
 if ( $filter_vendor_id ) {
 	$where_clauses[] = $wpdb->prepare( 'sales.vendor_id = %d', $filter_vendor_id );
@@ -32,34 +32,34 @@ if ( ! empty( $where_clauses ) ) {
 	$where_sql = 'WHERE ' . implode( ' AND ', $where_clauses );
 }
 
-// Consulta principal para obtener los datos de comisiones, uniendo con la tabla de usuarios para obtener el nombre del vendedor
+// Main query to get commission data, joining with users table to get vendor name
 $query = "
-    SELECT sales.*, users.display_name AS vendor_name
-    FROM {$table_name} AS sales
-    LEFT JOIN {$wpdb->users} AS users ON sales.vendor_id = users.ID
-    {$where_sql}
-    ORDER BY sales.date DESC
+	SELECT sales.*, users.display_name AS vendor_name
+	FROM {$table_name} AS sales
+	LEFT JOIN {$wpdb->users} AS users ON sales.vendor_id = users.ID
+	{$where_sql}
+	ORDER BY sales.date DESC
 ";
 
 $commission_data = $wpdb->get_results( $query );
 
-// Obtener todos los vendedores que tienen ventas para el filtro
+// Get all vendors with sales for the filter
 $vendors = $wpdb->get_results( "SELECT DISTINCT T1.vendor_id, T2.display_name FROM {$table_name} T1 JOIN {$wpdb->users} T2 ON T1.vendor_id = T2.ID ORDER BY T2.display_name ASC" );
 
-// ---- 2. CÓDIGO HTML PARA MOSTRAR EL PANEL ----
+// ---- 2. HTML CODE TO DISPLAY THE PANEL ----
 ?>
 
 <div class="wrap">
-	<h1 class="wp-heading-inline">Gestión de Comisiones de Vendedores</h1>
+	<h1 class="wp-heading-inline">Vendor Commission Management</h1>
 
-	<!-- Formulario de Filtros -->
+	<!-- Filter Form -->
 	<form method="get">
 		<input type="hidden" name="page" value="wc-afiliados-comisiones-admin">
 		<div class="tablenav top">
 			<div class="alignleft actions">
-				<label for="filter_vendor" class="screen-reader-text">Filtrar por vendedor</label>
+				<label for="filter_vendor" class="screen-reader-text">Filter by vendor</label>
 				<select name="filter_vendor" id="filter_vendor">
-					<option value="">Todos los vendedores</option>
+					<option value="">All vendors</option>
 					<?php foreach ( $vendors as $vendor ) : ?>
 						<option value="<?php echo esc_attr( $vendor->vendor_id ); ?>" <?php selected( $filter_vendor_id, $vendor->vendor_id ); ?>>
 							<?php echo esc_html( $vendor->display_name ); ?>
@@ -67,33 +67,33 @@ $vendors = $wpdb->get_results( "SELECT DISTINCT T1.vendor_id, T2.display_name FR
 					<?php endforeach; ?>
 				</select>
 
-				<label for="filter_status" class="screen-reader-text">Filtrar por estado de pago</label>
+				<label for="filter_status" class="screen-reader-text">Filter by payment status</label>
 				<select name="filter_status" id="filter_status">
-					<option value="">Todos los estados</option>
-					<option value="pendiente_finalizacion" <?php selected( $filter_status, 'pendiente_finalizacion' ); ?>>Pendiente de Finalización</option>
-					<option value="lista_para_pagar" <?php selected( $filter_status, 'lista_para_pagar' ); ?>>Lista para Pagar</option>
-					<option value="pagado" <?php selected( $filter_status, 'pagado' ); ?>>Pagado</option>
-					<option value="cancelado" <?php selected( $filter_status, 'cancelado' ); ?>>Cancelado</option>
+					<option value="">All statuses</option>
+					<option value="pendiente_finalizacion" <?php selected( $filter_status, 'pendiente_finalizacion' ); ?>>Pending Completion</option>
+					<option value="lista_para_pagar" <?php selected( $filter_status, 'lista_para_pagar' ); ?>>Ready to Pay</option>
+					<option value="pagado" <?php selected( $filter_status, 'pagado' ); ?>>Paid</option>
+					<option value="cancelado" <?php selected( $filter_status, 'cancelado' ); ?>>Cancelled</option>
 				</select>
 
-				<input type="submit" class="button" value="Filtrar">
-				<a href="?page=wc-afiliados-comisiones-admin" class="button">Limpiar</a>
+				<input type="submit" class="button" value="Filter">
+				<a href="?page=wc-afiliados-comisiones-admin" class="button">Clear</a>
 			</div>
 		</div>
 	</form>
 
-	<!-- Tabla de Comisiones -->
+	<!-- Commissions Table -->
 	<table class="wp-list-table widefat fixed striped">
 		<thead>
 			<tr>
-				<th scope="col" class="manage-column">Pedido</th>
-				<th scope="col" class="manage-column">Vendedor</th>
-				<th scope="col" class="manage-column">Fecha</th>
-				<th scope="col" class="manage-column">Monto Venta</th>
-				<th scope="col" class="manage-column">Tasa (%)</th>
-				<th scope="col" class="manage-column">Comisión</th>
-				<th scope="col" class="manage-column">Estado Pedido</th>
-				<th scope="col" class="manage-column">Estado Pago</th>
+				<th scope="col" class="manage-column">Order</th>
+				<th scope="col" class="manage-column">Vendor</th>
+				<th scope="col" class="manage-column">Date</th>
+				<th scope="col" class="manage-column">Sale Amount</th>
+				<th scope="col" class="manage-column">Rate (%)</th>
+				<th scope="col" class="manage-column">Commission</th>
+				<th scope="col" class="manage-column">Order Status</th>
+				<th scope="col" class="manage-column">Payment Status</th>
 			</tr>
 		</thead>
 		<tbody id="the-list">
@@ -116,7 +116,7 @@ $vendors = $wpdb->get_results( "SELECT DISTINCT T1.vendor_id, T2.display_name FR
 						<td><?php echo esc_html( $data->commission_rate ); ?>%</td>
 						<td>
 							<?php if ( 'cancelado' === $data->order_state ) : ?>
-								<span style="color:#e2401c;">Anulada</span>
+								<span style="color:#e2401c;">Cancelled</span>
 							<?php else : ?>
 								<strong><?php echo wc_price( $commission_amount ); ?></strong>
 							<?php endif; ?>
@@ -127,13 +127,13 @@ $vendors = $wpdb->get_results( "SELECT DISTINCT T1.vendor_id, T2.display_name FR
 				<?php endforeach; ?>
 			<?php else : ?>
 				<tr class="no-items">
-					<td class="colspanchange" colspan="8">No se encontraron comisiones con los filtros seleccionados.</td>
+					<td class="colspanchange" colspan="8">No commissions found with the selected filters.</td>
 				</tr>
 			<?php endif; ?>
 		</tbody>
 		<tfoot>
 			<tr>
-				<th scope="col" colspan="5" style="text-align:right;">Total de Comisiones (Filtrado):</th>
+				<th scope="col" colspan="5" style="text-align:right;">Total Commissions (Filtered):</th>
 				<th scope="col">
 					<strong><?php echo wc_price( $total_commission_amount ); ?></strong>
 				</th>
