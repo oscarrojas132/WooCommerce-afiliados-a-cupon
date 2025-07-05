@@ -45,8 +45,8 @@ class WC_Afiliados
      */
     public function includes()
     {
-        require_once dirname(__FILE__) . '/includes/class-wc-afiliados-frontend.php';
-        require_once dirname(__FILE__) . '/includes/class-wc-afiliados-admin.php';
+        require_once dirname(__FILE__) . '/includes/class-wc-affiliates-frontend.php';
+        require_once dirname(__FILE__) . '/includes/class-wc-affiliates-admin.php';
     }
 
     /**
@@ -54,8 +54,8 @@ class WC_Afiliados
      */
     public function init_classes()
     {
-        new WC_Afiliados_Frontend();
-        new WC_Afiliados_Admin();
+        new WC_Affiliates_Frontend();
+        new WC_Affiliates_Admin();
     }
 
     public static function instance()
@@ -88,8 +88,8 @@ class WC_Afiliados
             amount DECIMAL(12,2) NOT NULL,
             commission_rate DECIMAL(5,2) NOT NULL,
             date DATETIME NOT NULL,
-            order_state ENUM('cancelado','en_proceso','completado') NOT NULL,
-            payment_state ENUM('pendiente_finalizacion', 'lista_para_pagar', 'pagado', 'cancelado') NOT NULL DEFAULT 'pendiente_finalizacion',
+            order_state ENUM('cancelled','processing','completed') NOT NULL,
+            payment_state ENUM('pending_completion', 'ready_to_pay', 'paid', 'cancelled') NOT NULL DEFAULT 'pending_completion',
             coupon_code VARCHAR(50) NOT NULL,
             PRIMARY KEY  (id),
             KEY order_id (order_id),
@@ -141,11 +141,11 @@ class WC_Afiliados
             $order_state = $this->map_status($new_status);
 
             // Determine payment state based on order status.
-            $payment_state = 'pendiente_finalizacion'; // Default value for 'en_proceso'.
-            if ('completado' === $order_state) {
-                $payment_state = 'lista_para_pagar';
-            } elseif ('cancelado' === $order_state) {
-                $payment_state = 'cancelado';
+            $payment_state = 'pending_completion'; // Default value for 'processing'.
+            if ('completed' === $order_state) {
+                $payment_state = 'ready_to_pay';
+            } elseif ('cancelled' === $order_state) {
+                $payment_state = 'cancelled';
             }
 
             // Provisional commission. The real percentage will be calculated in the monthly summary.
@@ -195,17 +195,17 @@ class WC_Afiliados
     {
         switch ($status) {
             case 'cancelled':
-                return 'cancelado';
+                return 'cancelled';
             case 'refunded':
-                return 'cancelado';
+                return 'cancelled';
             case 'processing':
-                return 'en_proceso';
+                return 'processing';
             case 'on-hold':
-                return 'en_proceso';
+                return 'processing';
             case 'completed':
-                return 'completado';
+                return 'completed';
             default:
-                return 'en_proceso';
+                return 'processing';
         }
     }
 

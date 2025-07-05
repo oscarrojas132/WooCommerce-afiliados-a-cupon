@@ -36,7 +36,7 @@ if ( $sales_data ) {
 
 	foreach ( $sales_data as $sale ) {
 		// Add the sales amount (excluding cancelled)
-		if ( $sale->order_state !== 'cancelado' ) {
+		if ( $sale->order_state !== 'cancelled' ) {
 			$total_sales_amount += $sale->amount;
 		}
 		
@@ -45,13 +45,13 @@ if ( $sales_data ) {
 
 		// Distribute the commission according to payment status
 		switch ( $sale->payment_state ) {
-			case 'lista_para_pagar':
+			case 'ready_to_pay':
 				$total_commission_payable += $commission_amount;
 				break;
-			case 'pendiente_finalizacion':
+			case 'pending_completion':
 				$total_commission_pending += $commission_amount;
 				break;
-			// 'pagado' or 'cancelado' are not added to the main totals.
+			// 'paid' or 'cancelled' are not added to the main totals.
 		}
 	}
 }
@@ -122,7 +122,7 @@ if ( $sales_data ) {
 						<?php echo esc_html( $sale->commission_rate ); ?>%
 					</td>
 					<td class="woocommerce-orders-table__cell commission-amount" data-title="Your Commission">
-						<?php if ( 'cancelado' === $sale->order_state ) : ?>
+						<?php if ( 'cancelled' === $sale->order_state ) : ?>
 							<span style="color:#e2401c;">Cancelled</span>
 						<?php else : ?>
 							<strong><?php echo wc_price( $row_commission_amount ); ?></strong>

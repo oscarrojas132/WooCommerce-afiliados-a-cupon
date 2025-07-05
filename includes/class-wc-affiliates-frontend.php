@@ -9,7 +9,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit; // Exit if accessed directly.
 }
 
-class WC_Afiliados_Frontend {
+class WC_Affiliates_Frontend {
 
 	/**
 	 * Constructor.

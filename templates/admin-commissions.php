@@ -102,7 +102,7 @@ $vendors = $wpdb->get_results( "SELECT DISTINCT T1.vendor_id, T2.display_name FR
 					$total_commission_amount = 0;
 				foreach ( $commission_data as $data ) :
 					$commission_amount = ( $data->amount * $data->commission_rate ) / 100;
-					$total_commission_amount += ( 'cancelado' !== $data->order_state ) ? $commission_amount : 0;
+					$total_commission_amount += ( 'cancelled' !== $data->order_state ) ? $commission_amount : 0;
 					?>
 					<tr>
 						<td>
@@ -115,7 +115,7 @@ $vendors = $wpdb->get_results( "SELECT DISTINCT T1.vendor_id, T2.display_name FR
 						<td><?php echo wc_price( $data->amount ); ?></td>
 						<td><?php echo esc_html( $data->commission_rate ); ?>%</td>
 						<td>
-							<?php if ( 'cancelado' === $data->order_state ) : ?>
+							<?php if ( 'cancelled' === $data->order_state ) : ?>
 								<span style="color:#e2401c;">Cancelled</span>
 							<?php else : ?>
 								<strong><?php echo wc_price( $commission_amount ); ?></strong>

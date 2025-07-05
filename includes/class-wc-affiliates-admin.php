@@ -9,7 +9,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit; // Exit if accessed directly.
 }
 
-class WC_Afiliados_Admin {
+class WC_Affiliates_Admin {
 
 	/**
 	 * Constructor.
@@ -98,7 +98,7 @@ class WC_Afiliados_Admin {
 	 */
 	public function render_admin_panel() {
 		$plugin_path = dirname( __DIR__ );
-		include $plugin_path . '/templates/admin-comisiones.php';
+		include $plugin_path . '/templates/admin-commissions.php';
 	}
 
 	/**
